@@ -1,34 +1,71 @@
-
 import os
 import requests
 import time
-from collections import deque
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
-CHECK_INTERVAL = 900
+TELEGRAM_TOKEN = os.getenv("7487518680:AAGYIWG3nWuZtZLb4DWMkXtAKytSycURYy8")
+CHAT_ID = os.getenv("690843443")
+TAAPI_SECRET = os.getenv("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbHVlIjoiNjgwOGJiMDM4MDZmZjE2NTFlYWE3MzM3IiwiaWF0IjoxNzQ1NDEwNjk2LCJleHAiOjMzMjQ5ODc0Njk2fQ.CQBtzsamPnFajjkUI3xODyRNHywFCW_Inr-7Wks9Aa0""TAAPI_SECRET")
+INTERVAL = "1h"
+COINS = ["BTC", "ETH"]  # Test trước 2 coin
+CHECK_INTERVAL = 900  # 15 phút
 
-def send_alert(message: str):
+def send_alert(msg):
+    print("📨 Đang gửi telegram...")
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
-    requests.post(url, data=data)
-
-def get_btc_and_dominance():
+    data = {"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}
     try:
-        global_data = requests.get("https://api.coingecko.com/api/v3/global").json()["data"]
-        btc_price = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd").json()["bitcoin"]["usd"]
-        return btc_price, global_data["market_cap_percentage"]["btc"]
-    except:
-        return None, None
+        res = requests.post(url, data=data)
+        print("✅ Đã gửi Telegram:", res.status_code)
+    except Exception as e:
+        print("❌ Lỗi gửi:", e)
 
-def check_market():
-    btc_price, dominance = get_btc_and_dominance()
-    if btc_price is None or dominance is None:
-        send_alert("⚠️ Không lấy được dữ liệu BTC hoặc Dominance.")
-    else:
-        send_alert(f"✅ BTC: {btc_price}$ | Dominance: {dominance:.2f}%")
+def get_taapi(symbol):
+    base = "https://api.taapi.io"
+    try:
+        rsi = requests.get(f"{base}/rsi?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}").json()["value"]
+        ema21 = requests.get(f"{base}/ema?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}&optInTimePeriod=21").json()["value"]
+        ema50 = requests.get(f"{base}/ema?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}&optInTimePeriod=50").json()["value"]
+        return rsi, ema21, ema50
+    except:
+        return None, None, None
+
+def get_price(symbol):
+    try:
+        return requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={symbol}&vs_currencies=usd").json()[symbol]["usd"]
+    except:
+        return None
+
+def coin_to_cgid(symbol):
+    return {
+        "BTC": "bitcoin", "ETH": "ethereum"
+    }.get(symbol.upper())
+
+def build_alert(symbol, price, rsi, ema21, ema50):
+    msg = f"""📢 *Test tín hiệu {symbol}/USDT*
+Giá: {price}
+RSI: {rsi:.2f}
+EMA21: {ema21:.2f}
+EMA50: {ema50:.2f}
+
+✅ Đây là bản test. Bot đã chạy thành công!
+"""
+    return msg
+
+def check_all():
+    for coin in COINS:
+        cg_id = coin_to_cgid(coin)
+        price = get_price(cg_id)
+        rsi, ema21, ema50 = get_taapi(coin)
+        print(f"→ {coin}: giá={price}, RSI={rsi}, EMA21={ema21}")
+        if price and rsi and ema21 and ema50:
+            alert = build_alert(coin, round(price, 2), rsi, ema21, ema50)
+            send_alert(alert)
+        else:
+            print(f"Bỏ qua {coin} do thiếu dữ liệu.")
 
 if __name__ == "__main__":
     while True:
-        check_market()
+        print("🔁 Bắt đầu quét thị trường...")
+        check_all()
+        print("⏳ Chờ 15 phút...\n")
         time.sleep(CHECK_INTERVAL)
