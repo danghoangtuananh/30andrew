@@ -21,8 +21,11 @@ def send_telegram(message):
 def get_taapi(symbol):
     base = "https://api.taapi.io"
     try:
+        time.sleep(1)
         rsi = requests.get(f"{base}/rsi?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}").json()["value"]
+        time.sleep(1)
         ema21 = requests.get(f"{base}/ema?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}&optInTimePeriod=21").json()["value"]
+        time.sleep(1)
         ema50 = requests.get(f"{base}/ema?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}&optInTimePeriod=50").json()["value"]
         return rsi, ema21, ema50
     except:
@@ -48,7 +51,6 @@ def build_signal(symbol, price, rsi, ema21, ema50):
     tp1 = round(entry * 1.03, 4)
     tp2 = round(entry * 1.05, 4)
 
-    # Nếu RSI > 70 và giá dưới EMA → Short
     if rsi > 70 and price < ema21 and price < ema50:
         trend = "Short"
         sl = round(entry * 1.03, 4)
@@ -76,14 +78,12 @@ def check_market():
         rsi, ema21, ema50 = get_taapi(coin)
         print(f"→ {coin}: giá={price}, RSI={rsi}, EMA21={ema21}, EMA50={ema50}")
         if price and rsi and ema21 and ema50:
-            # Logic lọc tín hiệu Long hoặc Short
             if (price > ema21 and price > ema50 and rsi > 50) or (rsi > 70 and price < ema21 and price < ema50):
                 signal = build_signal(coin, price, rsi, ema21, ema50)
                 signals.append(signal)
         else:
             print(f"Bỏ qua {coin} vì thiếu dữ liệu.")
 
-    # Gom tín hiệu
     if signals:
         all_signals = "\n\n".join(signals)
         send_telegram(f"🚀 *Tổng hợp tín hiệu Margin X5:*\n\n{all_signals}")
