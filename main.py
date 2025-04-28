@@ -7,7 +7,7 @@ CHAT_ID = "690843443"
 TAAPI_SECRET = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbHVlIjoiNjgwOGJiMDM4MDZmZjE2NTFlYWE3MzM3IiwiaWF0IjoxNzQ1Nzc5MDY4LCJleHAiOjMzMjUwMjQzMDY4fQ.2dmcZqnmM2nfAXvQp-ITizP9TGrRkuyZeaWwj0N9u9E"
 INTERVAL = "1h"
 COINS = ["BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "MATIC", "DOGE", "LTC", "APT"]
-CHECK_INTERVAL = 900  # 15 phút
+CHECK_INTERVAL = 300  # 5 phút
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -21,14 +21,15 @@ def send_telegram(message):
 def get_taapi(symbol):
     base = "https://api.taapi.io"
     try:
-        time.sleep(1)
+        time.sleep(0.5)
         rsi = requests.get(f"{base}/rsi?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}").json()["value"]
-        time.sleep(1)
+        time.sleep(0.5)
         ema21 = requests.get(f"{base}/ema?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}&optInTimePeriod=21").json()["value"]
-        time.sleep(1)
+        time.sleep(0.5)
         ema50 = requests.get(f"{base}/ema?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}&optInTimePeriod=50").json()["value"]
         return rsi, ema21, ema50
-    except:
+    except Exception as e:
+        print(f"❌ Lỗi lấy TAAPI {symbol}: {e}")
         return None, None, None
 
 def get_price(symbol):
@@ -41,7 +42,8 @@ def get_price(symbol):
         }
         id = cg_mapping.get(symbol.upper())
         return requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={id}&vs_currencies=usd").json()[id]["usd"]
-    except:
+    except Exception as e:
+        print(f"❌ Lỗi lấy giá CoinGecko {symbol}: {e}")
         return None
 
 def build_signal(symbol, price, rsi, ema21, ema50):
@@ -76,13 +78,13 @@ def check_market():
     for coin in COINS:
         price = get_price(coin)
         rsi, ema21, ema50 = get_taapi(coin)
-        print(f"→ {coin}: giá={price}, RSI={rsi}, EMA21={ema21}, EMA50={ema50}")
+        print(f"🔎 Check {coin}: Giá={price}, RSI={rsi}, EMA21={ema21}, EMA50={ema50}")
         if price and rsi and ema21 and ema50:
             if (price > ema21 and price > ema50 and rsi > 50) or (rsi > 70 and price < ema21 and price < ema50):
                 signal = build_signal(coin, price, rsi, ema21, ema50)
                 signals.append(signal)
         else:
-            print(f"Bỏ qua {coin} vì thiếu dữ liệu.")
+            print(f"⚠️ Bỏ qua {coin} vì thiếu dữ liệu.")
 
     if signals:
         all_signals = "\n\n".join(signals)
@@ -92,7 +94,7 @@ def check_market():
 
 if __name__ == "__main__":
     while True:
-        print("🔁 Bắt đầu quét thị trường...")
+        print("🔁 Bắt đầu quét thị trường...\n")
         check_market()
-        print("⏳ Chờ 15 phút...\n")
+        print(f"⏳ Chờ {CHECK_INTERVAL//60} phút...\n")
         time.sleep(CHECK_INTERVAL)
