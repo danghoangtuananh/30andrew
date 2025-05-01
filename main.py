@@ -11,32 +11,37 @@ INTERVAL = "1h"
 COINS = ["BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "MATIC", "DOGE", "LTC", "APT"]
 CHECK_INTERVAL = 900  # 15 phút
 
-# --- Hàm gửi tin nhắn Telegram
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try:
         res = requests.post(url, data=payload)
-        print(f"✅ Gửi Telegram status: {res.status_code}")
+        print(f"✅ Gửi telegram status: {res.status_code}")
     except Exception as e:
-        print(f"❌ Lỗi gửi Telegram: {e}")
+        print(f"❌ Lỗi gửi telegram:", e)
 
-# --- Hàm lấy chỉ số từ TAAPI
 def get_taapi(symbol):
     base = "https://api.taapi.io"
     try:
-        time.sleep(4)  # nghỉ 4s mỗi request để tránh limit free
-        rsi = requests.get(f"{base}/rsi?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}").json()["value"]
-        time.sleep(4)
-        ema21 = requests.get(f"{base}/ema?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}&optInTimePeriod=21").json()["value"]
-        time.sleep(4)
-        ema50 = requests.get(f"{base}/ema?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}&optInTimePeriod=50").json()["value"]
+        time.sleep(2)
+        rsi_res = requests.get(f"{base}/rsi?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}").json()
+        ema21_res = requests.get(f"{base}/ema?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}&optInTimePeriod=21").json()
+        ema50_res = requests.get(f"{base}/ema?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}&optInTimePeriod=50").json()
+
+        rsi = rsi_res.get("value")
+        ema21 = ema21_res.get("value")
+        ema50 = ema50_res.get("value")
+
+        if rsi is None or ema21 is None or ema50 is None:
+            print(f"❌ Lỗi lấy TAAPI {symbol}: thiếu dữ liệu")
+            print(f"RSI: {rsi_res} | EMA21: {ema21_res} | EMA50: {ema50_res}")
+            return None, None, None
+
         return rsi, ema21, ema50
     except Exception as e:
-        print(f"❌ Lỗi lấy TAAPI {symbol}: {e}")
+        print(f"❌ Lỗi get_taapi({symbol}):", e)
         return None, None, None
 
-# --- Hàm lấy giá từ CoinGecko
 def get_price(symbol):
     try:
         cg_mapping = {
@@ -46,16 +51,12 @@ def get_price(symbol):
             "LTC": "litecoin", "APT": "aptos"
         }
         id = cg_mapping.get(symbol.upper())
-        if not id:
-            return None
-        res = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={id}&vs_currencies=usd")
-        price = res.json()[id]["usd"]
-        return price
+        price_res = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={id}&vs_currencies=usd").json()
+        return price_res.get(id, {}).get("usd")
     except Exception as e:
-        print(f"❌ Lỗi lấy giá {symbol}: {e}")
+        print(f"❌ Lỗi get_price({symbol}):", e)
         return None
 
-# --- Hàm build tín hiệu cho từng coin
 def build_signal(symbol, price, rsi, ema21, ema50):
     entry = round(price, 4)
     trend = "Long"
@@ -83,7 +84,6 @@ EMA50: {ema50:.2f}
 """
     return msg
 
-# --- Hàm quét thị trường
 def check_market():
     signals = []
     for coin in COINS:
@@ -95,7 +95,7 @@ def check_market():
                 signal = build_signal(coin, price, rsi, ema21, ema50)
                 signals.append(signal)
         else:
-            print(f"⚠️ Bỏ qua {coin} vì thiếu dữ liệu.")
+            print(f"Bỏ qua {coin} vì thiếu dữ liệu.")
 
     if signals:
         all_signals = "\n\n".join(signals)
@@ -103,7 +103,6 @@ def check_market():
     else:
         send_telegram("❌ Không có tín hiệu đẹp, chờ chu kỳ tiếp theo!")
 
-# --- Main Run
 if __name__ == "__main__":
     while True:
         print("🔁 Bắt đầu quét thị trường...")
