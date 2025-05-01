@@ -11,6 +11,7 @@ INTERVAL = "1h"
 COINS = ["BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "MATIC", "DOGE", "LTC", "APT"]
 CHECK_INTERVAL = 900  # 15 phút
 
+# --- Hàm gửi tin nhắn Telegram
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
@@ -20,20 +21,22 @@ def send_telegram(message):
     except Exception as e:
         print(f"❌ Lỗi gửi Telegram: {e}")
 
+# --- Hàm lấy chỉ số từ TAAPI
 def get_taapi(symbol):
     base = "https://api.taapi.io"
     try:
-        time.sleep(1)  # Delay để tránh spam API
+        time.sleep(4)  # nghỉ 4s mỗi request để tránh limit free
         rsi = requests.get(f"{base}/rsi?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}").json()["value"]
-        time.sleep(1)
+        time.sleep(4)
         ema21 = requests.get(f"{base}/ema?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}&optInTimePeriod=21").json()["value"]
-        time.sleep(1)
+        time.sleep(4)
         ema50 = requests.get(f"{base}/ema?secret={TAAPI_SECRET}&exchange=binance&symbol={symbol}/USDT&interval={INTERVAL}&optInTimePeriod=50").json()["value"]
         return rsi, ema21, ema50
     except Exception as e:
-        print(f"Lỗi lấy TAAPI {symbol}: {e}")
+        print(f"❌ Lỗi lấy TAAPI {symbol}: {e}")
         return None, None, None
 
+# --- Hàm lấy giá từ CoinGecko
 def get_price(symbol):
     try:
         cg_mapping = {
@@ -43,12 +46,16 @@ def get_price(symbol):
             "LTC": "litecoin", "APT": "aptos"
         }
         id = cg_mapping.get(symbol.upper())
-        time.sleep(1)
-        return requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={id}&vs_currencies=usd").json()[id]["usd"]
+        if not id:
+            return None
+        res = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={id}&vs_currencies=usd")
+        price = res.json()[id]["usd"]
+        return price
     except Exception as e:
-        print(f"Lỗi lấy giá {symbol}: {e}")
+        print(f"❌ Lỗi lấy giá {symbol}: {e}")
         return None
 
+# --- Hàm build tín hiệu cho từng coin
 def build_signal(symbol, price, rsi, ema21, ema50):
     entry = round(price, 4)
     trend = "Long"
@@ -76,6 +83,7 @@ EMA50: {ema50:.2f}
 """
     return msg
 
+# --- Hàm quét thị trường
 def check_market():
     signals = []
     for coin in COINS:
@@ -87,7 +95,7 @@ def check_market():
                 signal = build_signal(coin, price, rsi, ema21, ema50)
                 signals.append(signal)
         else:
-            print(f"Bỏ qua {coin} vì thiếu dữ liệu.")
+            print(f"⚠️ Bỏ qua {coin} vì thiếu dữ liệu.")
 
     if signals:
         all_signals = "\n\n".join(signals)
@@ -95,6 +103,7 @@ def check_market():
     else:
         send_telegram("❌ Không có tín hiệu đẹp, chờ chu kỳ tiếp theo!")
 
+# --- Main Run
 if __name__ == "__main__":
     while True:
         print("🔁 Bắt đầu quét thị trường...")
