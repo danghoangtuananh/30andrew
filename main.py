@@ -1,15 +1,14 @@
-import os
 import requests
 import time
 
-# Khai báo thông tin cần thiết
-TELEGRAM_TOKEN = os.getenv("7487518680:AAGYIWG3nWuZtZLb4DWMkXtAKytSycURYy8")
-CHAT_ID = os.getenv("690843443")
-TAAPI_SECRET = os.getenv("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbHVlIjoiNjgwOGJiMDM4MDZmZjE2NTFlYWE3MzM3IiwiaWF0IjoxNzQ1Nzc5MDY4LCJleHAiOjMzMjUwMjQzMDY4fQ.2dmcZqnmM2nfAXvQp-ITizP9TGrRkuyZeaWwj0N9u9E")
+# 🔐 Gán trực tiếp giá trị token/chat_id/key
+TELEGRAM_TOKEN = "7487518680:AAGYIWG3nWuZtZLb4DWMkXtAKytSycURYy8"
+CHAT_ID = "690843443"
+TAAPI_SECRET = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 
 INTERVAL = "1h"
 COINS = ["BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "MATIC", "DOGE", "LTC", "APT"]
-CHECK_INTERVAL = 900  # 15 phút
+CHECK_INTERVAL = 7200  # 🕒 2 tiếng
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -51,8 +50,8 @@ def get_price(symbol):
             "LTC": "litecoin", "APT": "aptos"
         }
         id = cg_mapping.get(symbol.upper())
-        price_res = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={id}&vs_currencies=usd").json()
-        return price_res.get(id, {}).get("usd")
+        res = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={id}&vs_currencies=usd").json()
+        return res.get(id, {}).get("usd")
     except Exception as e:
         print(f"❌ Lỗi get_price({symbol}):", e)
         return None
@@ -101,11 +100,11 @@ def check_market():
         all_signals = "\n\n".join(signals)
         send_telegram(f"🚀 *Tổng hợp tín hiệu Margin X5:*\n\n{all_signals}")
     else:
-        send_telegram("❌ Không có tín hiệu đẹp, chờ chu kỳ tiếp theo!")
+        send_telegram("❌ Không có tín hiệu đẹp, chờ 2 tiếng sau!")
 
 if __name__ == "__main__":
     while True:
         print("🔁 Bắt đầu quét thị trường...")
         check_market()
-        print("⏳ Chờ 15 phút...\n")
+        print("⏳ Chờ 2 tiếng...\n")
         time.sleep(CHECK_INTERVAL)
